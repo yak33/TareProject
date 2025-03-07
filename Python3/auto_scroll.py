@@ -1,4 +1,5 @@
-#!D:/TOOLS/anaconda3/python.exe
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 import time
 import win32gui
 import win32con
@@ -30,26 +31,62 @@ def on_press(key):
     except Exception as e:
         logging.error(f"键盘监听出错：{e}")
 
-def find_window(window_title):
+def find_window(window_title, allow_input=False):
     """
     根据窗口标题查找窗口句柄
+    
+    :param window_title: 窗口标题
+    :param allow_input: 是否允许在找不到窗口时手动输入
+    :return: 窗口句柄
     """
     logging.info(f"正在搜索窗口：{window_title}")
     hwnd = win32gui.FindWindow(None, window_title)
     if hwnd == 0:
-        logging.error(f"未找到标题为 '{window_title}' 的窗口")
+        logging.warning(f"未找到标题为 '{window_title}' 的窗口")
+        
         # 打印所有窗口以供参考
         def enum_windows_callback(hwnd, windows):
-            windows.append((hwnd, win32gui.GetWindowText(hwnd)))
+            if win32gui.IsWindowVisible(hwnd) and win32gui.GetWindowText(hwnd):
+                windows.append((hwnd, win32gui.GetWindowText(hwnd)))
             return True
         
         windows = []
         win32gui.EnumWindows(enum_windows_callback, windows)
-        logging.info("当前所有窗口：")
-        for hwnd, title in windows:
-            logging.info(f"窗口句柄: {hwnd}, 标题: {title}")
+        logging.info("当前活跃窗口列表：")
+        for i, (hwnd, title) in enumerate(windows[:10], 1):  # 只显示前10个窗口
+            logging.info(f"{i}. 窗口句柄: {hwnd}, 标题: {title}")
         
-        raise Exception(f"未找到标题为 '{window_title}' 的窗口")
+        if len(windows) > 10:
+            logging.info(f"...还有 {len(windows) - 10} 个窗口未显示")
+        
+        if allow_input:
+            print("\n未找到指定窗口，请选择操作：")
+            print("1. 手动输入窗口标题")
+            print("2. 从列表中选择窗口")
+            print("3. 退出程序")
+            choice = input("请输入选项(1/2/3): ").strip()
+            
+            if choice == '1':
+                new_title = input("请输入窗口标题: ").strip()
+                return find_window(new_title, True)
+            elif choice == '2':
+                try:
+                    idx = int(input(f"请输入窗口序号(1-{min(10, len(windows))}): ").strip())
+                    if 1 <= idx <= len(windows):
+                        selected_hwnd, selected_title = windows[idx-1]
+                        logging.info(f"已选择窗口: {selected_title}")
+                        return selected_hwnd
+                    else:
+                        logging.error("无效的窗口序号")
+                except ValueError:
+                    logging.error("输入的不是有效数字")
+            
+            logging.info("用户选择退出程序")
+            stop_event.set()
+            raise Exception("用户取消操作")
+        else:
+            raise Exception(f"未找到标题为 '{window_title}' 的窗口")
+    
     logging.info(f"找到窗口，句柄为：{hwnd}")
     return hwnd
 
@@ -184,8 +221,8 @@ def simulate_video_scroll(window_title, interval=2, scroll_distance=600):
     模拟视频切换的滚动模式
     """
     try:
-        # 查找窗口
-        hwnd = find_window(window_title)
+        # 查找窗口，允许手动输入
+        hwnd = find_window(window_title, allow_input=True)
         
         # 获取窗口位置和大小
         logging.info("获取窗口位置信息")
@@ -234,8 +271,8 @@ def simulate_waterfall_scroll(window_title, scroll_duration=30):
     模拟瀑布流页面的缓慢滚动模式
     """
     try:
-        # 查找窗口
-        hwnd = find_window(window_title)
+        # 查找窗口，允许手动输入
+        hwnd = find_window(window_title, allow_input=True)
         
         # 获取窗口位置和大小
         logging.info("获取窗口位置信息")
